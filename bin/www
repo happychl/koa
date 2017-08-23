@@ -36,49 +36,61 @@ var io = require('socket.io')(server);
 // socket.emit ==> send to you
 
 let users = [],
-    robotId = uuid.v1();
+    robotId = uuid.v1(),
+    robotOpen = false;
 
 io.on('connect', socket => {
-    console.log('user connect');
     const userId = uuid.v1();
 
     socket.on('userInfo', obj => {
+        console.log(`${obj.name}上线`);
         obj.id = userId;
         users.push(obj);
 
+        console.log(`配置用户ID:${userId}`);
         socket.emit('userId', {
             userId: userId
         });
 
+        console.log(`广播上线消息`);
         io.emit('message', {
             type: 0,
-            text: `?? ${obj.name} ?????`
+            text: `欢迎 ${obj.name} 进入聊天室`
         });
     });
 
     socket.on('message', msg => {
         msg.id = userId;
+
+        console.log(`广播聊天消息`);
         io.emit('message', msg);
 
-        if (users.length === 1 || msg.text.includes('@robot')) {
-            // ???????
+        if (msg.text.includes('@robot')) {
+            robotOpen = true;
+        } else if (msg.text.includes('#robot')) {
+            robotOpen = false;
+        }
+
+        if (users.length === 1 || robotOpen) {
             let options = {
                 method: 'POST',
                 uri: 'http://www.tuling123.com/openapi/api',
                 body: {
                     key: '82a45855ec0d484fbe598d67986d9de2',
-                    info: msg.text
+                    info: msg.text.replace(/[@#]robot/,'')
                 },
                 json: true
             };
 
             rp(options).then(res => {
                 if (res.code === 100000) {
+                    console.log(`广播机器人回复消息`);
                     io.emit('message', {
                         type: 1,
-                        text: res.text,
+                        id: '1001',
                         name: 'robot',
-                        id: robotId
+                        text: res.text,
+                        loc: '上海市'
                     });
                 }
             });
@@ -133,9 +145,9 @@ function onError(error) {
         throw error;
     }
 
-    var bind = typeof port === 'string'
-        ? 'Pipe ' + port
-        : 'Port ' + port;
+    var bind = typeof port === 'string' ?
+        'Pipe ' + port :
+        'Port ' + port;
 
     // handle specific listen errors with friendly messages
     switch (error.code) {
@@ -158,10 +170,8 @@ function onError(error) {
 
 function onListening() {
     var addr = server.address();
-    var bind = typeof addr === 'string'
-        ? 'pipe ' + addr
-        : 'port ' + addr.port;
+    var bind = typeof addr === 'string' ?
+        'pipe ' + addr :
+        'port ' + addr.port;
     debug('Listening on ' + bind);
 }
-
-
